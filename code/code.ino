@@ -1,4 +1,5 @@
-//Nathnaiel Ostrer
+//Nathaniel Ostrer
+//1/24/16
 
 #include <SoftwareSerial.h>              //Include the software serial library  
 #include <Wire.h>                   //enable I2C.
