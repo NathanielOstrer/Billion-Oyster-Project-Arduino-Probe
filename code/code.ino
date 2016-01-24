@@ -1,44 +1,10 @@
-// WhiteBox Labs -- Tentacle Shield -- Circuit Setup
-//
-// Tool to help you setup multiple sensor circuits from Atlas Scientific
-// It will allow you to control up to 8 Atlas Scientific devices through 1 soft serial RX/TX line or more through the I2C bus
-// For serial stamps (legacy or EZO-stamps in serial mode), the baudrate is detected automatically.
-//
-// THIS IS A TOOL TO SETUP YOUR CIRCUITS INTERACTIVELY. THIS CODE IS NOT INTENDED AS A BOILERPLATE FOR YOUR PROJECT.
-//
-// This code is intended to work on all Arduinos. If using the Arduino Yun, connect
-// to it's serial port. If you want to work with the Yun wirelessly, check out the respective
-// Yun version of this example.
-//
-// USAGE:
-//---------------------------------------------------------------------------------------------
-// - Set host serial terminal to 9600 baud
-// - To open a serial channel (numbered 0 - 7), send the number of the channel
-// - To open a I2C address (between 8 - 127), send the number of the address
-// - To issue a command, enter it directly to the console.
-//
-//---------------------------------------------------------------------------------------------
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-// 
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-//
-//---------------------------------------------------------------------------------------------
+//Nathnaiel Ostrer
 
 #include <SoftwareSerial.h>              //Include the software serial library  
 #include <Wire.h>                   //enable I2C.
 
 SoftwareSerial sSerial(11, 10);          // RX, TX  - Name the software serial library sSerial (this cannot be omitted)
-                                         // assigned to pins 10 and 11 for maximum compatibility
+// assigned to pins 10 and 11 for maximum compatibility
 
 const int s0 = 7;                        //Arduino pin 7 to control pin S0
 const int s1 = 6;                        //Arduino pin 6 to control pin S1
@@ -63,15 +29,20 @@ byte i2c_response_code = 0;              //used to hold the I2C response code.
 byte in_char = 0;                    //used as a 1 byte buffer to store in bound bytes from an I2C stamp.
 
 const long validBaudrates[] = {          // list of baudrates to try when connecting to a stamp (they're ordered by probability to speed up things a bit)
-  38400, 19200, 9600, 115200, 57600
+    38400, 19200, 9600, 115200, 57600
 };
 long channelBaudrate[] = {               // store for the determined baudrates for every stamp
-  0, 0, 0, 0, 0, 0, 0, 0
+    0, 0, 0, 0, 0, 0, 0, 0
 };
 
 boolean I2C_mode = false;    //bool switch for serial/I2C
 
 
+int currentChannel = 0; //current sensor channel - switches between 0, 1 and 2
+// 0 - ph sensor
+// 1 - Disolved Oxygen
+// 2 - Conductivity
+// 3 - temperature (this is not actually a serial channel, but I'm just setting it to 3 because)
 
 void setup() {
   pinMode(s1, OUTPUT);                   //Set the digital pin as output.
@@ -86,114 +57,136 @@ void setup() {
 
   stamp_type.reserve(16);                // reserve string buffer to save some SRAM
   intro();         // display startup message
+  //scan(true);
+  computer_bytes_received = 0;               // Reset the var computer_bytes_received to equal 0
+  return;
 }
 
 
 
 void loop() {
-
-  if (computer_bytes_received != 0) {            //If input recieved from PC/MAC/other
-    cmd = computerdata;                          //Set cmd with incoming serial data
-
-    if (String(cmd) == F("help")) {    //if help entered...
-      help();            //call help dialogue
-      computer_bytes_received = 0;               //Reset the var computer_bytes_received to equal 0
-      return;
-    }
-    else if (String(cmd) == F("scan")) {         // if scan requested
-      scan(true);
-      computer_bytes_received = 0;               // Reset the var computer_bytes_received to equal 0
-      return;
-    }
-    else if (String(cmd) == F("scani2c")) {
-      scan(false);
-      computer_bytes_received = 0;               // Reset the var computer_bytes_received to equal 0
-      return;
-    }
-    else {
-
-      // TODO: without loop?
-      for (int x = 0; x <= 127; x++) {    //loop through input searching for a channel change request (integer between 0 and 127)
-        if (String(cmd) == String(x)) {
-          Serial.print(F("changing channel to "));
-          Serial.println( cmd);
-          channel = atoi(cmd);      //set channel variable to number 0-127
-
-          if (change_channel()) {   //set MUX switches or I2C address
-
-            Serial.println(  F("-------------------------------------"));
-            Serial.print(    F("ACTIVE channel : "));
-            Serial.println(  channel );
-            Serial.print(    F("Type: "));
-            Serial.print(    stamp_type);
-            Serial.print(    F(", Version: "));
-            Serial.print(    stamp_version);
-            Serial.print(    F(", COM: "));
-
-            if (channel > 8) {
-              Serial.println(F("I2C"));
-            }
-            else {
-              Serial.print(  F("UART ("));
-              Serial.print(  String(channelBaudrate[channel]));
-              Serial.println(F(" baud)"));
-            }
-          }
-          else {
-            Serial.println(F("CHANNEL NOT AVAILABLE! Empty slot? Different COM-mode?"));
-            Serial.println(F("Try 'scan' or set baudrate manually (see 'help')."));
-          }
-          computer_bytes_received = 0;                    //Reset the var computer_bytes_received to equal 0
-          return;
-        }
-      }
-
-      for ( int x = 0; x < 5; x++) {                    // check if a baudrate was entered manually
-        if (String(cmd) == String(validBaudrates[x])) {
-          Serial.print(F("Setting baudrate manually to "));
-          Serial.println(validBaudrates[x]);
-          channelBaudrate[channel] = validBaudrates[x];
-          String(channel).toCharArray(cmd, 4);            // do a "fake" command for the next loop-run, as if the channel number was entered again (will refresh info with the manually set baudrate)
-          return;                                         // do not set computer_bytes_received to 0, so the channel-command gets handled right away
-        }
-      }
-
-      if (String(cmd).startsWith(F("serial,")) || String(cmd).startsWith(F("i2c,"))) {
-        Serial.println(F("! when switching from i2c to serial or vice-versa,"));
-        Serial.println(F("! don't forget to switch the hardware jumpers accordingly."));
-      }
-
-    }
-
-    Serial.print(F("> "));                              // echo to the serial console
-    Serial.println(cmd);
-
-
-    if (I2C_mode == false) {        //if serial channel selected
-      sSerial.print(cmd);                             //Send the command from the computer to the Atlas Scientific device using the softserial port
-      sSerial.print("\r");                            //After we send the command we send a carriage return <CR>
-    }
-
-    else {            //if I2C address selected
-      I2C_call();  // send i2c command and wait for answer
-      if (sensor_bytes_received > 0) {
-        Serial.print(F("< "));
-        Serial.println(sensordata);       //print the data.
-      }
-    }
-
-    computer_bytes_received = 0;          //Reset the var computer_bytes_received to equal 0
-  }
-
-  if (sSerial.available() > 0) {                          //If data has been transmitted from an Atlas Scientific device
-    sensor_bytes_received = sSerial.readBytesUntil(13, sensordata, 30); //we read the data sent from the Atlas Scientific device until we see a <CR>. We also count how many character have been received
-    sensordata[sensor_bytes_received] = 0;                  //we add a 0 to the spot in the array just after the last character we received. This will stop us from transmitting incorrect data that may have been left in the buffer
-    Serial.print(F("< "));
-    Serial.println(sensordata);                           //let’s transmit the data received from the Atlas Scientific device to the serial monitor
-  }
-
+  readPHSensorData();
+  readDOSensorData();
+  readECSensorData();
 }
 
+
+void readPHSensorData() {
+    channel = 0;
+    change_channel(); //change channel to ph sensor channel (0)
+
+    cmd = "r"; //set command to "r" so that we can read from sensor
+    
+    sSerial.print(cmd);                             //Send the command from the computer to the Atlas Scientific device using the softserial port
+    sSerial.print("\r");                            //After we send the command we send a carriage return <CR>
+    
+    while (sSerial.available() > 0); //wait until there is data available from the sensor
+    
+    sensor_bytes_received = sSerial.readBytesUntil(13, sensordata, 30); //we read the data sent from the Atlas Scientific device until we see a <CR>. We also count how many character have been received
+    sensordata[sensor_bytes_received] = 0;                  //we add a 0 to the spot in the array just after the last character we received. This will stop us from transmitting incorrect data that may have been left in the buffer
+    Serial.print(F("ph:"));
+    Serial.println(sensordata);                           //let’s transmit the data received from the Atlas Scientific device to the serial monitor
+    
+}
+
+void readDOSensorData() {
+    //change channel to DO sensor channel (0)
+    channel = 1;
+    change_channel(); 
+
+    cmd = "r"; //set command to "r" so that we can read from sensor
+    
+    sSerial.print(cmd);                             //Send the command from the computer to the Atlas Scientific device using the softserial port
+    sSerial.print("\r");                            //After we send the command we send a carriage return <CR>
+    
+    while (sSerial.available() > 0); //wait until there is data available from the sensor
+    
+    sensor_bytes_received = sSerial.readBytesUntil(13, sensordata, 30); //we read the data sent from the Atlas Scientific device until we see a <CR>. We also count how many character have been received
+    sensordata[sensor_bytes_received] = 0;                  //we add a 0 to the spot in the array just after the last character we received. This will stop us from transmitting incorrect data that may have been left in the buffer
+    Serial.print(F("do:"));
+    Serial.println(sensordata);                           //let’s transmit the data received from the Atlas Scientific device to the serial monitor
+}
+
+void readECSensorData() {
+    //change channel to ec sensor channel (2)
+    channel = 2;
+    change_channel();
+
+    cmd = "r"; //set command to "r" so that we can read from sensor
+    
+    sSerial.print(cmd);                             //Send the command from the computer to the Atlas Scientific device using the softserial port
+    sSerial.print("\r");                            //After we send the command we send a carriage return <CR>
+    
+    while (sSerial.available() > 0); //wait until there is data available from the sensor
+    
+    sensor_bytes_received = sSerial.readBytesUntil(13, sensordata, 30); //we read the data sent from the Atlas Scientific device until we see a <CR>. We also count how many character have been received
+    sensordata[sensor_bytes_received] = 0;                  //we add a 0 to the spot in the array just after the last character we received. This will stop us from transmitting incorrect data that may have been left in the buffer
+    Serial.print(F("ec:"));
+    Serial.println(sensordata);                           //let’s transmit the data received from the Atlas Scientific device to the serial monitor
+}
+
+void readTemperatureData(boolean fahrenheit) {
+  // read the input on analog pin 0:
+  int sensorValue = analogRead(A0);
+  // Convert the analog reading (which goes from 0 - 1023) to a voltage (0 - 5V):
+  float voltage = sensorValue * (5.0 / 1023.0);
+
+  //convert voltage to resistance
+  float current = .150;//need to find
+  float resistance = voltage / current;
+  
+  //convert resistance to temperature
+  float temperature = - (sqrt(-0.00232 * resistance + 17.59246) - 3.908) / 0.00116;
+
+  if(fahrenheit == true) {
+    temperature = temperature * 9.0/5.0 + 32.0;
+  }
+  
+  // print out the value you read:
+  Serial.println(temperature);
+}
+
+void readTemperatureData() {
+  // read the input on analog pin 0:
+  int sensorValue = analogRead(A0);
+  // Convert the analog reading (which goes from 0 - 1023) to a voltage (0 - 5V):
+  float voltage = sensorValue * (5.0 / 1023.0);
+
+  //convert voltage to resistance
+  float current = .150; //need to find
+  float resistance = voltage / current;
+  
+  //convert resistance to temperature
+  float temperature = - (sqrt(-0.00232 * resistance + 17.59246) - 3.908) / 0.00116;
+
+  // print out the value you read:
+  Serial.println(temperature);
+}
+
+void scan(boolean scanserial) {                      // Scan for all devices. Set scanserial to false to scan I2C only (much faster!)
+
+  int stamp_amount = 0;
+  for (channel = 0; channel < 8; channel++) {
+  
+    if (change_channel()) {
+      stamp_amount++;
+  
+      serialPrintDivider();
+      Serial.print(    F("-- SERIAL CHANNEL "));
+      Serial.println(  channel);
+      Serial.println(  F("--"));
+      Serial.print(    F("-- Type: "));
+      Serial.println(  stamp_type);
+      Serial.print(    F("-- Baudrate: "));
+      Serial.println(  channelBaudrate[channel]);
+    }
+  }
+
+  Serial.println(  F("\r\r"));
+  Serial.println(  F("SCAN COMPLETE"));
+  Serial.print(    stamp_amount);
+  Serial.println(  F(" stamps found"));
+}
 
 /* This interrupt will trigger when the data coming from the serial monitor(pc/mac/other) is received*/
 void serialEvent() {
@@ -217,146 +210,74 @@ boolean change_channel() {                                 //function controls w
 
     return true;
   }
-  else {
-    // TODO: without loop?
-    for (int x = 8; x <= 127; x++) {
-      if (channel == x) {
-        I2C_mode = true;
-        if ( !check_i2c_connection() ) {                   // check if this I2C port can be opened
-          return false;
-        }
-        return true;
-      }
-    }
-  }
 }
-
-
-
-byte I2C_call() {           //function to parse and call I2C commands.
-  sensor_bytes_received = 0;                            // reset data counter
-  memset(sensordata, 0, sizeof(sensordata));            // clear sensordata array;
-
-  Wire.beginTransmission(channel);                  //call the circuit by its ID number.
-  Wire.write(cmd);                      //transmit the command that was sent through the serial port.
-  Wire.endTransmission();                           //end the I2C data transmission.
-
-  i2c_response_code = 254;
-  while (i2c_response_code == 254) {      // in case the cammand takes longer to process, we keep looping here until we get a success or an error
-
-    if (String(cmd).startsWith(F("cal")) || String(cmd).startsWith(F("Cal")) ) {
-      delay(1400);                        // cal-commands take 1300ms or more
-    } else if (String(cmd) == F("r") || String(cmd) == F("R")) {
-      delay(1000);                        // reading command takes about a second
-    }
-    else {
-      delay(300);                         // all other commands: wait 300ms
-    }
-
-    Wire.requestFrom(channel, 48, 1);     //call the circuit and request 48 bytes (this is more then we need).
-    i2c_response_code = Wire.read();      //the first byte is the response code, we read this separately.
-
-    while (Wire.available()) {            //are there bytes to receive.
-      in_char = Wire.read();              //receive a byte.
-
-      if (in_char == 0) {                 //if we see that we have been sent a null command.
-        Wire.endTransmission();           //end the I2C data transmission.
-        break;                            //exit the while loop.
-      }
-      else {
-        sensordata[sensor_bytes_received] = in_char;        //load this byte into our array.
-        sensor_bytes_received++;
-      }
-    }
-
-    switch (i2c_response_code) {         //switch case based on what the response code is.
-      case 1:                          //decimal 1.
-        Serial.println( F("< success"));     //means the command was successful.
-        break;                           //exits the switch case.
-
-      case 2:                          //decimal 2.
-        Serial.println( F("< command failed"));     //means the command has failed.
-        break;                           //exits the switch case.
-
-      case 254:                        //decimal 254.
-        Serial.println( F("< command pending"));    //means the command has not yet been finished calculating.
-        break;                           //exits the switch case.
-
-      case 255:                        //decimal 255.
-        Serial.println( F("No Data"));    //means there is no further data to send.
-        break;                           //exits the switch case.
-    }
-  }
-}
-
 
 
 void change_serial_mux_channel() {           // configures the serial muxers depending on channel.
 
   switch (channel) {                         //Looking to see what channel to open
 
-    case 0:                                  //If channel==0 then we open channel 0
-      digitalWrite(enable_1, LOW);           //Setting enable_1 to low activates primary channels: 0,1,2,3
-      digitalWrite(enable_2, HIGH);          //Setting enable_2 to high deactivates secondary channels: 4,5,6,7
-      digitalWrite(s0, LOW);                 //S0 and S1 control what channel opens
-      digitalWrite(s1, LOW);                 //S0 and S1 control what channel opens
-      break;                                 //Exit switch case
+  case 0:                                  //If channel==0 then we open channel 0
+    digitalWrite(enable_1, LOW);           //Setting enable_1 to low activates primary channels: 0,1,2,3
+    digitalWrite(enable_2, HIGH);          //Setting enable_2 to high deactivates secondary channels: 4,5,6,7
+    digitalWrite(s0, LOW);                 //S0 and S1 control what channel opens
+    digitalWrite(s1, LOW);                 //S0 and S1 control what channel opens
+    break;                                 //Exit switch case
 
-    case 1:
-      digitalWrite(enable_1, LOW);
-      digitalWrite(enable_2, HIGH);
-      digitalWrite(s0, HIGH);
-      digitalWrite(s1, LOW);
-      break;
+  case 1:
+    digitalWrite(enable_1, LOW);
+    digitalWrite(enable_2, HIGH);
+    digitalWrite(s0, HIGH);
+    digitalWrite(s1, LOW);
+    break;
 
-    case 2:
-      digitalWrite(enable_1, LOW);
-      digitalWrite(enable_2, HIGH);
-      digitalWrite(s0, LOW);
-      digitalWrite(s1, HIGH);
-      break;
+  case 2:
+    digitalWrite(enable_1, LOW);
+    digitalWrite(enable_2, HIGH);
+    digitalWrite(s0, LOW);
+    digitalWrite(s1, HIGH);
+    break;
 
-    case 3:
-      digitalWrite(enable_1, LOW);
-      digitalWrite(enable_2, HIGH);
-      digitalWrite(s0, HIGH);
-      digitalWrite(s1, HIGH);
-      break;
+  case 3:
+    digitalWrite(enable_1, LOW);
+    digitalWrite(enable_2, HIGH);
+    digitalWrite(s0, HIGH);
+    digitalWrite(s1, HIGH);
+    break;
 
-    case 4:
-      digitalWrite(enable_1, HIGH);
-      digitalWrite(enable_2, LOW);
-      digitalWrite(s0, LOW);
-      digitalWrite(s1, LOW);
-      break;
+  case 4:
+    digitalWrite(enable_1, HIGH);
+    digitalWrite(enable_2, LOW);
+    digitalWrite(s0, LOW);
+    digitalWrite(s1, LOW);
+    break;
 
-    case 5:
-      digitalWrite(enable_1, HIGH);
-      digitalWrite(enable_2, LOW);
-      digitalWrite(s0, HIGH);
-      digitalWrite(s1, LOW);
-      break;
+  case 5:
+    digitalWrite(enable_1, HIGH);
+    digitalWrite(enable_2, LOW);
+    digitalWrite(s0, HIGH);
+    digitalWrite(s1, LOW);
+    break;
 
-    case 6:
-      digitalWrite(enable_1, HIGH);
-      digitalWrite(enable_2, LOW);
-      digitalWrite(s0, LOW);
-      digitalWrite(s1, HIGH);
-      break;
+  case 6:
+    digitalWrite(enable_1, HIGH);
+    digitalWrite(enable_2, LOW);
+    digitalWrite(s0, LOW);
+    digitalWrite(s1, HIGH);
+    break;
 
-    case 7:
-      digitalWrite(enable_1, HIGH);
-      digitalWrite(enable_2, LOW);
-      digitalWrite(s0, HIGH);
-      digitalWrite(s1, HIGH);
-      break;
+  case 7:
+    digitalWrite(enable_1, HIGH);
+    digitalWrite(enable_2, LOW);
+    digitalWrite(s0, HIGH);
+    digitalWrite(s1, HIGH);
+    break;
 
-    default:
-      digitalWrite(enable_1, HIGH);   //disable soft serial
-      digitalWrite(enable_2, HIGH);   //disable soft serial
+  default:
+    digitalWrite(enable_1, HIGH);   //disable soft serial
+    digitalWrite(enable_2, HIGH);   //disable soft serial
   }
 }
-
 
 
 boolean check_serial_connection() {                // check the selected serial port. find and set baudrate, request info from the stamp
@@ -389,7 +310,6 @@ boolean check_serial_connection() {                // check the selected serial 
 
   return false;   // no stamp was found at this channel
 }
-
 
 
 boolean scan_baudrates() {                               // scans baudrates to auto-detect the right one for this uart channel. if one is found, it is saved globally in channelBaudrate[]
@@ -444,39 +364,6 @@ boolean request_serial_info() {                        // helper to request info
   }
 
   return false;                                        // it was not possible to get info from the stamp
-}
-
-
-
-boolean check_i2c_connection() {                      // check selected i2c channel/address. verify that it's working by requesting info about the stamp
-
-  retries = 0;
-
-  while (retries < 3) {
-    retries++;
-    Wire.beginTransmission(channel);      // just do a short connection attempt without command to scan i2c for devices
-    error = Wire.endTransmission();
-
-    if (error == 0)                       // if error is 0, there's a device
-    {
-
-      int r_retries = 0;
-      while (r_retries < 3) {
-        cmd = "i";                          // set cmd to request info (in I2C_call())
-        I2C_call();
-
-        if (parseInfo()) {
-          return true;
-        }
-      }
-      return false;
-    }
-    else
-    {
-      return false;                      // no device at this address
-    }
-  }
-
 }
 
 
@@ -618,80 +505,11 @@ void clearIncomingBuffer() {          // "clears" the incoming soft-serial buffe
 }
 
 
-
-void scan(boolean scanserial) {                      // Scan for all devices. Set scanserial to false to scan I2C only (much faster!)
-
-  if (scanserial) {
-    Serial.println(F("Starting scan... this might take up to a minute."));
-    Serial.println(F("(if only using i2c mode, use 'scani2c' to scan faster)"));
-  } else {
-    Serial.println(F("Starting  I2C scan..."));
-  }
-  
-  int stamp_amount = 0;
-
-  for (channel = 8; channel < 127; channel++ )
-  {
-
-    if (change_channel()) {
-      stamp_amount++;
-
-      serialPrintDivider();
-      Serial.print(    F("-- I2C CHANNEL "));
-      Serial.println(  channel);
-      Serial.println(  F("--"));
-      Serial.print(    F("-- Type: "));
-      Serial.println(  stamp_type);
-    }
-  }
-
-  if (scanserial) {
-    for (channel = 0; channel < 8; channel++) {
-  
-      if (change_channel()) {
-        stamp_amount++;
-  
-        serialPrintDivider();
-        Serial.print(    F("-- SERIAL CHANNEL "));
-        Serial.println(  channel);
-        Serial.println(  F("--"));
-        Serial.print(    F("-- Type: "));
-        Serial.println(  stamp_type);
-        Serial.print(    F("-- Baudrate: "));
-        Serial.println(  channelBaudrate[channel]);
-      }
-    }
-  }
-
-  Serial.println(  F("\r\r"));
-  Serial.println(  F("SCAN COMPLETE"));
-  Serial.print(    stamp_amount);
-  Serial.println(  F(" stamps found"));
-}
-
-
-
 void intro() {                                             //print intro
   Serial.flush();
   serialPrintDivider();
-  Serial.println( F("Whitebox Labs -- Tentacle Shield - Stamp Setup"));
-  Serial.println( F("For info type 'help'"));
-  Serial.println( F("To read current config from attached stamps type 'scan'"));
-  Serial.println( F(" (e.g. if you've changed baudrates)"));
-  Serial.println( F("To read current config from attached I2C stamps only, type 'scani2c'"));
-  Serial.println( F("TYPE CHANNEL NUMBER (Serial: 0-7, I2C: 8-127):"));
-}
+  Serial.println( F("Welcome to the Billion Oyster Project Probe!"));
 
-void help() {                                            //print help dialogue
-  serialPrintDivider();
-  Serial.println( F("To open a serial channel (numbered 0 - 7), send the number of the channel"));
-  Serial.println( F("To open a I2C address (between 8 - 127), send the number of the address"));
-  Serial.println( F("To issue a command, enter it directly to the console."));
-  Serial.println( F("To update information about connected stamps, type 'scan'."));
-  Serial.println( F(" -> This might take a while, it will scan all ports (serial and I2C)"));
-  Serial.println( F(" -> and determine correct baudrates."));
-  Serial.println( F("To set baudrate manually, type one of 38400,19200,9600,115200,57600"));
-  Serial.println( F("=========="));
 }
 
 void serialPrintDivider() {
