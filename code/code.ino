@@ -73,8 +73,9 @@ void loop() {
 
 
 void readPHSensorData() {
+    //change channel to ph sensor channel (0)
     channel = 0;
-    change_channel(); //change channel to ph sensor channel (0)
+    change_channel();
 
     cmd = "r"; //set command to "r" so that we can read from sensor
     
@@ -91,7 +92,7 @@ void readPHSensorData() {
 }
 
 void readDOSensorData() {
-    //change channel to DO sensor channel (0)
+    //change channel to DO sensor channel (1)
     channel = 1;
     change_channel(); 
 
