@@ -13,8 +13,8 @@ void setup() {
 
 void draw() {
   String val = myPort.readStringUntil('\n');
-  //String val = "ph:3.675,do:6.21,tm:25";
-  String[] vals = val.split(",");
+  //String val = "ph:3.675 do:6.21 tm:25";
+  String[] vals = val.split(" ");
   
   for (int i = 0; i < vals.length; i++) {
     double value = Double.parseDouble(vals[i].substring(3));

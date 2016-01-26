@@ -67,9 +67,9 @@ void setup() {
 
 void loop() {
   readPHSensorData();
-  Serial.print(",");
+  Serial.print(" ");
   readDOSensorData();
-  Serial.print(",");
+  Serial.print(" ");
   readECSensorData();
   Serial.println();
 }
