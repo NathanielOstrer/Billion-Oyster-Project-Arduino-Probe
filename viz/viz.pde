@@ -17,7 +17,12 @@ void draw() {
   String[] vals = val.split(" ");
   
   for (int i = 0; i < vals.length; i++) {
-    double value = Double.parseDouble(vals[i].substring(3));
+    double value;
+    try {
+      value = Double.parseDouble(vals[i].substring(3));
+    } catch (Exception e) {
+      value = 0;
+    }
     String label = vals[i].substring(0, 2);
     int x = width/vals.length*i + 25;
     int y = height/2;
