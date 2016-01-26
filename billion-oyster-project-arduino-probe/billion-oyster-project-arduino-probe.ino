@@ -67,8 +67,11 @@ void setup() {
 
 void loop() {
   readPHSensorData();
+  Serial.print(",");
   readDOSensorData();
+  Serial.print(",");
   readECSensorData();
+  Serial.println();
 }
 
 void readPHSensorData() {
@@ -86,7 +89,7 @@ void readPHSensorData() {
     sensor_bytes_received = sSerial.readBytesUntil(13, sensordata, 30); //we read the data sent from the Atlas Scientific device until we see a <CR>. We also count how many character have been received
     sensordata[sensor_bytes_received] = 0;                  //we add a 0 to the spot in the array just after the last character we received. This will stop us from transmitting incorrect data that may have been left in the buffer
     Serial.print(F("ph:"));
-    Serial.println(sensordata);                           //let’s transmit the data received from the Atlas Scientific device to the serial monitor
+    Serial.print(sensordata);                           //let’s transmit the data received from the Atlas Scientific device to the serial monitor
     
 }
 
@@ -105,7 +108,7 @@ void readDOSensorData() {
     sensor_bytes_received = sSerial.readBytesUntil(13, sensordata, 30); //we read the data sent from the Atlas Scientific device until we see a <CR>. We also count how many character have been received
     sensordata[sensor_bytes_received] = 0;                  //we add a 0 to the spot in the array just after the last character we received. This will stop us from transmitting incorrect data that may have been left in the buffer
     Serial.print(F("do:"));
-    Serial.println(sensordata);                           //let’s transmit the data received from the Atlas Scientific device to the serial monitor
+    Serial.print(sensordata);                           //let’s transmit the data received from the Atlas Scientific device to the serial monitor
 }
 
 void readECSensorData() {
@@ -123,7 +126,7 @@ void readECSensorData() {
     sensor_bytes_received = sSerial.readBytesUntil(13, sensordata, 30); //we read the data sent from the Atlas Scientific device until we see a <CR>. We also count how many character have been received
     sensordata[sensor_bytes_received] = 0;                  //we add a 0 to the spot in the array just after the last character we received. This will stop us from transmitting incorrect data that may have been left in the buffer
     Serial.print(F("ec:"));
-    Serial.println(sensordata);                           //let’s transmit the data received from the Atlas Scientific device to the serial monitor
+    Serial.print(sensordata);                           //let’s transmit the data received from the Atlas Scientific device to the serial monitor
 }
 
 void readTemperatureData(boolean fahrenheit) {
@@ -142,9 +145,10 @@ void readTemperatureData(boolean fahrenheit) {
   if(fahrenheit == true) {
     temperature = temperature * 9.0/5.0 + 32.0;
   }
-  
+
+  Serial.print(F("tm:"));
   // print out the value you read:
-  Serial.println(temperature);
+  Serial.print(temperature);
 }
 
 void readTemperatureData() {
@@ -159,9 +163,9 @@ void readTemperatureData() {
   
   //convert resistance to temperature
   float temperature = - (sqrt(-0.00232 * resistance + 17.59246) - 3.908) / 0.00116;
-
+  Serial.print(F("tm:"));
   // print out the value you read:
-  Serial.println(temperature);
+  Serial.print(temperature);
 }
 
 void scan(boolean scanserial) {                      // Scan for all devices. Set scanserial to false to scan I2C only (much faster!)
