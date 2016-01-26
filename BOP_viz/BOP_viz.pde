@@ -5,15 +5,15 @@ String val;
 
 void setup() {
   size(200, 200);
-  //String portName = Serial.list()[0];
-  //myPort = new Serial(this, portName, 9600);
+  String portName = Serial.list()[0];
+  myPort = new Serial(this, portName, 9600);
   ellipseMode(RADIUS);
   rectMode(CENTER);
 }
 
 void draw() {
-  //String val = myPort.readStringUntil('\n');
-  String val = "tm:10,do:29,oc:5";
+  String val = myPort.readStringUntil('\n');
+  //String val = "tm:10,do:29,oc:5";
   String[] vals = val.split(",");
   
   for (int i = 0; i < vals.length; i++) {
@@ -24,6 +24,7 @@ void draw() {
     
     ellipse(x, y, num, num);
     fill(0);
+    text("" + num, x-5, y-50);
     text(label, x-5, y+50);
     fill(255);
   }
