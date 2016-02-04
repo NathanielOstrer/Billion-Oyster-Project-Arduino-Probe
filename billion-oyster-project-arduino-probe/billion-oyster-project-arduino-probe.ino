@@ -69,8 +69,8 @@ void loop() {
   readPHSensorData();
   Serial.print(" ");
   readDOSensorData();
-  Serial.print(" ");
-  readECSensorData();
+  //Serial.print(" ");
+  //readECSensorData();
   Serial.println();
 }
 
