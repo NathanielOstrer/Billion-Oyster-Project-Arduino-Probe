@@ -1,4 +1,9 @@
-# Billion Oyster Project Arduino Probe Code
+# Billion Oyster Project Arduino Probe
+
+This is the arduino code for a prototype water quality probe I helped design for the Billion Oyster Project.
+
+The following describes how to set up the probe.
+
 
 How to setup your probe:
 
